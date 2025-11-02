@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="<%= settings.dark_mode ? 'dark' : 'light' %>">
+<head>
+  <meta charset="UTF-8">
+  <title>SQLite3 Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+  <style>
+    /* body {
+      background-color: #f8f9fa;
+    } */
+    #editor {
+      height: 300px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .monaco-editor {
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container">
+    <h1 class="mb-4">SQLite3 Admin</h1>
+    <div class="row">
+      <div class="col-sm-4">
+        <div class="card">
+          <div class="card-body">
+            <h4>Tables</h4>
+              <ul class="list-group">
+                <% tables.forEach(t => { %>
+                  <li class="list-group-item">
+                    <a href="/table/<%= t.name %>" class="nav-link">🗂️ <%= t.name %></a>
+                  </li>
+                <% }) %>
+              </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-8">
+        <div class="container mb-3">
+          <ul class="nav nav-tabs">
+            <li class="nav-item">
+              <a class="nav-link active" href="/">🏠 Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tables">🧩 Tables</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/import-export/sql">📁 Import SQL</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tools">🧰 Tools</a>
+            </li>
+            <li class="nav-ietm">
+              <a href="/settings" class="nav-link">⚙️ Settings</a>
+            </li>
+          </ul>
+        </div>
+  <div class="container">
+    <h2 class="mb-3">📄 Mini SQL IDE</h2>
+
+    <!-- SQL Editor -->
+    <div id="editor"></div>
+
+    <!-- Run Button -->
+    <div class="text-end mt-3">
+      <button id="runQueryBtn" class="btn btn-primary">
+        ▶ Run Query
+      </button>
+      <button id="clearBtn" class="btn btn-outline-danger">🧹 Clear Editor</button>
+    </div>
+
+    <!-- Alerts -->
+    <div id="alertBox" class="mt-3"></div>
+
+    <!-- Results -->
+    <div id="queryResult" class="mt-4"></div>
+  </div>
+
+  <!-- Dependencies -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Monaco Editor Loader -->
+  <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
+
+  <script>
+    let editor;
+
+    const settings = <%- JSON.stringify(settings) %>;
+    if(settings.dark_mode){
+      // Load Monaco
+      require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
+      require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+          value: "SELECT name FROM sqlite_master WHERE type='table';",
+          language: "sql",
+          theme: "vs-dark",
+          automaticLayout: true,
+          fontSize: 14,
+          minimap: { enabled: false },
+        });
+      });
+    }else{
+      // Load Monaco
+      require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
+      require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+          value: "SELECT name FROM sqlite_master WHERE type='table';",
+          language: "sql",
+          theme: "vs-light",
+          automaticLayout: true,
+          fontSize: 14,
+          minimap: { enabled: false },
+        });
+      });
+    }
+
+    $(document).on('click', "#clearBtn", function(){
+      editor.setValue('');
+    });
+
+    // Run Query Handler
+    $(document).on("click", "#runQueryBtn", function () {
+      const query = editor.getValue().trim();
+      if (!query) {
+        $("#alertBox").html('<div class="alert alert-warning">Please enter a SQL query.</div>');
+        return;
+      }
+
+      $("#alertBox").html('<div class="alert alert-info">Running query...</div>');
+      $("#queryResult").html("");
+
+      $.ajax({
+        url: "/query",
+        method: "POST",
+        data: { query },
+        success: function (data) {
+          if (data.error) {
+            $("#alertBox").html(`<div class="alert alert-danger">${data.error}</div>`);
+          } else {
+            $("#alertBox").html('<div class="alert alert-success">✅ Query executed successfully!</div>');
+            if (!data.result || data.result.length === 0) {
+              $("#queryResult").html("<p>No rows returned.</p>");
+              return;
+            }
+
+            // Build table dynamically
+            const keys = Object.keys(data.result[0]);
+            let table = "<table class='table table-bordered table-striped table-hover'>";
+            table += "<thead class='table-dark'><tr>" + keys.map(k => `<th>${k}</th>`).join("") + "</tr></thead>";
+            table += "<tbody>";
+            data.result.forEach(row => {
+              table += "<tr>" + keys.map(k => `<td>${row[k] ?? ''}</td>`).join("") + "</tr>";
+            });
+            table += "</tbody></table>";
+            $("#queryResult").html(table);
+          }
+        },
+        error: function () {
+          $("#alertBox").html('<div class="alert alert-danger">Server error occurred.</div>');
+        },
+      });
+    });
+  </script>
+      </div>
+    </div>
+
+    <!-- <hr>
+
+    <h4>Run SQL Query</h4>
+    <form id="queryForm">
+      <textarea class="form-control mb-2" id="sqlQuery" rows="3" placeholder="SELECT * FROM table_name LIMIT 10;"></textarea>
+      <button class="btn btn-primary" type="submit">Run</button>
+    </form>
+
+    <pre class="mt-3 bg-light p-3" id="queryResult"></pre>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    $("#queryForm").on("submit", async (e) => {
+      e.preventDefault();
+      const query = $("#sqlQuery").val();
+      const res = await fetch("/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+      $("#queryResult").text(JSON.stringify(data, null, 2));
+    });
+  </script> -->
+</body>
+</html>
