@@ -1,4 +1,4 @@
-SQLite3 Admin
+# SQLite3 Admin
 ![Home Page](./assets/index.png)
 A lightweight, beautiful, zero-config web based SQLite admin panel.
 
