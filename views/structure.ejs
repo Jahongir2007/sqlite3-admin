@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="<%= settings.dark_mode ? 'dark' : 'light' %>">
+<head>
+  <meta charset="UTF-8">
+  <title><%= name %> - SQLite3 Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="p-4">
+  <div class="container mt-4 mb-3">
+          <ul class="nav nav-tabs">
+            <li class="nav-item">
+              <a class="nav-link" href="/">🏠 Home </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tables">🧩 Tables</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active"  href="/tables/<%= name %>/structure/">📊 Structure</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link"  href="/table/<%= name %>/">🗄️ Data</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/table/<%= name %>/import-export/">📁 Import / Export</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">🧰 Tools</a>
+            </li>
+            <li class="nav-item">
+              <a href="/settings" class="nav-link">⚙️ Settings</a>
+            </li>
+          </ul>
+  </div>
+  <div class="container">
+    <h1>📊 Table Structure: <%= name %></h1>
+    <a href="/tables" class="btn btn-secondary mb-3">← Back</a>
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>PK</th>
+            <th>AI</th>
+            <th>Not Null</th>
+            <th>Default</th>
+            <th>Action</th>
+            </tr>
+        </thead>
+            <tbody>
+                <% columns.forEach((col, i) => { %>
+                <tr data-column="<%= col.name %>">
+                    <td><%= i+1 %></td>
+                    <td><input class="form-control form-control-sm col-name" value="<%= col.name %>"></td>
+                    <td>
+                    <select class="form-select form-select-sm col-type">
+                        <option <%= col.type.includes('INTEGER') ? 'selected' : '' %>>INTEGER</option>
+                        <option <%= col.type.includes('TEXT') ? 'selected' : '' %>>TEXT</option>
+                        <option <%= col.type.includes('VARCHAR') ? 'selected' : '' %>>VARCHAR</option>
+                        <option <%= col.type.includes('REAL') ? 'selected' : '' %>>REAL</option>
+                    </select>
+                    </td>
+                    <td><input class="newpk" type="checkbox" <%= col.pk ? 'checked' : '' %>></td>
+                    <td><input class="newai" type="checkbox" <%= col.ai ? 'checked' : '' %>></td>
+                    <td><input class="newnn" type="checkbox" <%= col.notnull ? 'checked' : '' %>></td>
+                    <td><input class="form-control form-control-sm def-val" placeholder="default" value="<%= col.dflt_value || '' %>"></td>
+                    <td>
+                    <button class="btn btn-outline-danger btn-sm delete-column">🗑️</button>
+                    <button class="btn btn-outline-dark btn-sm save-column">💾</button>
+                    </td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+
+        <button class="btn btn-outline-primary mt-3" id="addColumnBtn">➕ Add New Column</button>
+        <button class="btn btn-outline-primary mt-3" id="saveChangesBtn">💾 Save new column</button>
+    </div>
+  </div>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    $('#addColumnBtn').on('click', () => {
+      $('#addColumnBtn').prop('disabled', true).text("You can only add one column");  
+      $('tbody').append(`
+            <tr>
+            <td>new</td>
+            <td><input class="new-column form-control form-control-sm"></td>
+            <td>
+                <select class="new-column-type form-select form-select-sm">
+                <option>INTEGER</option>
+                <option>TEXT</option>
+                <option>VARCHAR</option>
+                <option>REAL</option>
+                </select>
+            </td>
+            <td><input class="pk" type="checkbox"></td>
+            <td><input class="ai" type="checkbox"></td>
+            <td><input class="nn" type="checkbox"></td>
+            <td><input class="form-control form-control-sm dflt-val" placeholder="default"></td>
+            <td><button class="btn btn-outline-danger btn-sm delete-column">🗑️</button></td>
+            </tr>
+        `);
+    });
+
+    $(document).on('click', '#saveChangesBtn', function(){
+      const newColumn = $(".new-column").val();
+      const newColumnType = $(".new-column-type").val();
+      const oldColumns = <%- JSON.stringify(columns) %>;
+      if (!newColumn || !newColumnType) {
+        Swal.fire('⚠️ Missing info', 'Please enter a column name and select a type.', 'warning');
+        return;
+      }
+
+      if ($('.ai').is(':checked') && !$('.pk').is(':checked')) {
+        Swal.fire('⚠️ Invalid setup', 'AUTOINCREMENT requires PRIMARY KEY (INTEGER).', 'warning');
+        return;
+      }
+      // let len = $('.len').val();
+      // let defVal = $('.dflt-val').val();
+      // ✅ Handle length input
+      let len = $('.len').val();
+      if (!len || len.trim().length === 0) {
+        len = ''; // no length
+      }
+
+      // ✅ Handle default value input
+      let defVal = $('.dflt-val').val();
+      if (!defVal || defVal.trim().length === 0) {
+        defVal = null;
+      }
+
+      // console.log('clicked');
+      $.ajax({
+        url: '/table/<%= name %>/structure/addcolumn',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ 
+          newColumn, 
+          oldColumns,
+          newColumnType,
+          primarKey: $('.pk').is(':checked'),
+          autoIncrement: $(".ai").is(':checked'),
+          notNull: $('.nn').is(':checked'),
+          defVal,
+          len
+        }),
+        success: function(res){
+          window.location.href = '/table/<%= name %>/structure'
+        },
+        error: function(err){
+          console.log("Eror: ", err);
+        }
+      });
+    });
+
+    $(document).on('click', '.save-column', function(){
+      let oldColumn = $(this).closest('tr').data('column');
+      const oldColumns = <%- JSON.stringify(columns) %>;
+      let newColumn = $(this).closest('tr').find('.col-name').val();
+      let newColumnType = $(this).closest('tr').find('.col-type').val();
+      let newpk = $(this).closest('tr').find('.newpk').is(':checked');
+      let newai = $(this).closest('tr').find('.newai').is(':checked');
+      let newnn = $(this).closest('tr').find('.newnn').is(':checked');
+      let newDefVal = $(this).closest('tr').find('.def-val').val();
+      if(!newDefVal || newDefVal.trim().length == 0) newDefVal = null;
+      // console.log(newColumn);
+      // console.log(oldColName);
+      $.ajax({
+        url: '/table/<%= name %>/structure/update',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          oldColumn,
+          oldColumns,
+          newColumn, 
+          newColumnType,
+          newpk, newai, newnn,
+          newDefVal
+        }),
+        success: function(res){
+          window.location.href = '/table/<%= name %>/structure'
+        },
+        error: function(err){
+          console.log("Error: ", err);
+        }
+      });
+    });
+
+    $(document).on('click', '.delete-column', function(){
+      const columnToDelete = $(this).closest('tr').find('.col-name').val();
+      // console.log(columnToDelete);
+      $.ajax({
+        url: '/table/<%= name %>/structure/deletecolumn',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          columnToDelete
+        }),
+        success: function(res){
+          window.location.href = '/table/<%= name %>/structure'
+        },
+        error: function(err){
+          console.log("Error: ", err);
+        }
+      });
+    });
+
+    $(document).on('change', '.col-type, .new-column-type', function() {
+      const type = $(this).val().toUpperCase();
+      const aiBox = $(this).closest('tr').find('.ai, .newai');
+      if (type !== 'INTEGER') {
+        aiBox.prop('checked', false).prop('disabled', true);
+      } else {
+        aiBox.prop('disabled', false);
+      }
+    });
+
+    $(document).on('change', '.ai', function() {
+      // If user checks AI, automatically check PK too
+      if ($(this).is(':checked')) {
+        $(this).closest('tr').find('.pk').prop('checked', true);
+      }
+    });
+
+    $(document).on('change', '.newai', function() {
+      // Same logic for existing column edit rows
+      if ($(this).is(':checked')) {
+        $(this).closest('tr').find('.newpk').prop('checked', true);
+      }
+    });
+  </script>
+</body>
+</html>

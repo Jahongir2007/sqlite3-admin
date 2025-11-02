@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="<%= settings.dark_mode ? 'dark' : 'light' %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tables - SQLite3 Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="container mt-4 mb-3">
+          <ul class="nav nav-tabs">
+            <li class="nav-item">
+              <a class="nav-link" href="/">🏠 Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/tables">🧩 Tables</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/import-export/sql">📁 Import SQL</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tools">🧰 Tools</a>
+            </li>
+            <li class="nav-ietm">
+              <a href="/settings" class="nav-link">⚙️ Settings</a>
+            </li>
+          </ul>
+        </div>
+    </div>
+    <div class="container mt-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>🧩 Tables</h3>
+            <button class="btn btn-outline-dark" id="createTableBtn">➕ Create Table</button>
+        </div>
+        <!-- Create Table Modal -->
+        <div class="modal fade" id="createTableModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create New Table</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                <div class="modal-body">
+                    <form id="createTableForm">
+                        <div class="mb-3">
+                            <label class="form-label">Table Name</label>
+                            <input type="text" class="form-control" id="tableName" required placeholder="e.g. users">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Number of Columns</label>
+                            <input type="number" class="form-control" id="columnCount" min="1" max="20" required placeholder="e.g. 3">
+                        </div>
+
+                        <div id="columnsContainer" class="border rounded p-3 bg-light">
+                            <!-- Dynamic column inputs will appear here -->
+                            <p class="text-muted m-0">Enter number of columns above to generate inputs</p>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 mt-3">Create Table</button>
+                    </form>
+                </div>
+                </div>
+            </div>
+        </div>
+        <ul class="list-group">
+            <% tables.forEach(t => { %>
+                <li class="list-group-item">
+                    <div class="row">
+                        <div class="col-sm-8">
+                            <a href="/table/<%= t.name %>" class="nav-link fs-4">🗂️ <%= t.name %></a>
+                        </div>
+                        <div class="col-sm-4">
+                            <div data-table="<%= t.name %>" class="container table-data text-end">
+                                <button class="rename-btn btn btn-outline-primary me-3">✒️ Rename</button>
+                                <button class="remove-btn btn btn-outline-danger">🗑️ Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            <% }) %>
+        </ul>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function(){
+            // 🧩 Rename Table
+            $(document).on('click', '.rename-btn', function() {
+                const tableName = $(this).closest('.table-data').data('table');
+
+                Swal.fire({
+                    title: `Rename "${tableName}"`,
+                    input: 'text',
+                    inputLabel: 'Enter new table name',
+                    inputPlaceholder: 'new_table_name',
+                    showCancelButton: true,
+                    confirmButtonText: 'Rename',
+                    cancelButtonText: 'Cancel',
+                    preConfirm: (newName) => {
+                    if (!newName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newName)) {
+                        Swal.showValidationMessage('Invalid name! Use only letters, numbers, or underscores.');
+                        return false;
+                    }
+                    return newName;
+                    }
+                }).then(result => {
+                    if (result.isConfirmed) {
+                    const newName = result.value;
+
+                    // AJAX call to backend
+                    $.ajax({
+                        url: `/tables/rename/${tableName}`,
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ newName }),
+                        success: function(res) {
+                        if (res.success) {
+                            Swal.fire({
+                            icon: 'success',
+                            title: 'Renamed!',
+                            text: `Table renamed to "${newName}"`,
+                            timer: 1500,
+                            showConfirmButton: false
+                            });
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            Swal.fire('Error', res.error || 'Something went wrong', 'error');
+                        }
+                        },
+                        error: function() {
+                        Swal.fire('Error', 'Server error occurred', 'error');
+                        }
+                    });
+                    }
+                });
+            });
+
+            // 🌀 Show modal
+            $('#createTableBtn').on('click', function(){
+            $('#createTableModal').modal('show');
+            });
+
+            // 🧱 Generate column inputs dynamically
+            $('#columnCount').on('input', function(){
+                const count = parseInt($(this).val());
+                const container = $('#columnsContainer');
+                container.empty();
+
+                if (isNaN(count) || count < 1) {
+                    container.html('<p class="text-muted m-0">Enter number of columns above to generate inputs</p>');
+                    return;
+                }
+
+                for (let i = 1; i <= count; i++) {
+                    container.append(`
+                    <div class="row g-2 mb-3 column-row border-bottom pb-2">
+                        <div class="col-md-3">
+                        <input type="text" class="form-control column-name" placeholder="Column ${i} name" required>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select column-type">
+                                <option value="INTEGER">INTEGER</option>
+                                <option value="TEXT">TEXT</option>
+                                <option value="VARCHAR">VARCHAR</option>
+                                <option value="REAL">REAL</option>
+                                <option value="BLOB">BLOB</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-center gap-3 flex-wrap">
+                        <div class="form-check">
+                            <input class="form-check-input column-pk" type="checkbox" id="pk${i}">
+                            <label class="form-check-label" for="pk${i}">PK</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-ai" type="checkbox" id="ai${i}">
+                            <label class="form-check-label" for="ai${i}">AI</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-nn" type="checkbox" id="nn${i}">
+                            <label class="form-check-label" for="nn${i}">NN</label>
+                        </div>
+                        </div>
+                    </div>
+                    `);
+                    if (i === 1) {
+                        $(`#pk${i}`).prop('checked', true);
+                        $(`#ai${i}`).prop('checked', true);
+                        $(`.column-name`).first().val('id');
+                    }
+                }
+            });
+
+            $(document).on('change', '.column-type', function(){
+                const type = $(this).val();
+                const lengthInput = $(this).siblings('.column-length');
+            });
+
+
+            // 💾 Handle form submit
+          $('#createTableForm').on('submit', function(e){
+            e.preventDefault();
+
+            const name = $('#tableName').val().trim();
+            if (!name) return Swal.fire("Missing name", "Please enter a table name", "warning");
+
+            let columns = [];
+
+            $('#columnsContainer .column-row').each(function(){
+                const colName = $(this).find('.column-name').val().trim();
+                let colType = $(this).find('.column-type').val();
+                const colLength = $(this).find('.column-length').val();
+
+                if (colType === 'VARCHAR' && colLength) {
+                    colType = `VARCHAR(${colLength})`;
+                }
+
+                const pk = $(this).find('.column-pk').is(':checked') ? 'PRIMARY KEY' : '';
+                const ai = $(this).find('.column-ai').is(':checked') ? 'AUTOINCREMENT' : '';
+                const nn = $(this).find('.column-nn').is(':checked') ? 'NOT NULL' : '';
+
+                const extras = [pk, ai, nn].filter(Boolean).join(' ');
+                if (colName) columns.push(`${colName} ${colType} ${extras}`);
+            });
+
+            if (columns.length === 0)
+                return Swal.fire("No columns", "Please define at least one column", "warning");
+
+            $.ajax({
+                url: '/tables/create',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ name, columns: columns.join(', ') }),
+                success: function(res){
+                if (res.success) {
+                    Swal.fire({
+                    icon: "success",
+                    title: "✅ Table Created!",
+                    text: `Table "${name}" created successfully.`,
+                    timer: 1500,
+                    showConfirmButton: false
+                    });
+                    $('#createTableModal').modal('hide');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    Swal.fire("Error", res.error || "Something went wrong.", "error");
+                }
+                },
+                error: function(){
+                Swal.fire("Error", "Server error occurred.", "error");
+                }
+            });
+        });
+
+
+            $(document).on('click', '.remove-btn', function(){
+                const tableName = $(this).closest('.table-data').data('table');
+                // console.log(tableName);
+
+                // $.ajax({
+                //     url: `tables/remove/${tableName}`,
+                //     method: 'POST',
+                //     contentType: 'application/json',
+                //     data: JSON.stringify({table: tableName}),
+                //     success: function(res){
+                //         if(res.success){
+
+                //         }
+                //     }
+                // });
+
+                Swal.fire({
+                    title: `Delete table "${tableName}"?`,
+                    text: "This action cannot be undone!",
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonColor: "#d33",
+                    cancelButtonColor: "#3085d6",
+                    confirmButtonText: "Yes, remove it",
+                    cancelButtonText: "Cancel"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+
+                        // 🌀 AJAX request to delete route
+                        $.ajax({
+                            url: `/tables/remove/${tableName}`,
+                            method: 'POST',
+                            success: function(res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    title: "Removed!",
+                                    text: `Table "${tableName}" has been removed.`,
+                                    icon: "success",
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+
+                                // remove table item from list
+                                $(`[data-table="${tableName}"]`).closest('li').fadeOut(400, function() {
+                                    $(this).remove();
+                                });
+
+                            } else {
+                                Swal.fire("Error", res.error || "Something went wrong.", "error");
+                            }
+                            },
+                            error: function(err) {
+                            Swal.fire("Error", "Server error occurred.", "error");
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

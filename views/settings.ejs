@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="<%= settingsSelf.dark_mode ? 'dark' : 'light' %>">
+<head>
+  <title>Settings</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+    <div class="container mb-3">
+          <ul class="nav nav-tabs">
+            <li class="nav-item">
+              <a class="nav-link" href="/">🏠 Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tables">🧩 Tables</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/import-export/sql">📁 Import SQL</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/tools">🧰 Tools</a>
+            </li>
+            <li class="nav-ietm">
+              <a href="/settings" class="nav-link active">⚙️ Settings</a>
+            </li>
+          </ul>
+    </div>
+    <div class="container">
+        <h2>⚙️ Settings</h2>
+        <form action="/settings" method="POST" class="mt-4">
+
+            <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="dark_mode" <%= settings.dark_mode ? 'checked' : '' %>>
+            <label class="form-check-label">Dark Mode</label>
+            </div>
+
+            <div class="mb-3">
+            <label class="form-label">Rows per page</label>
+            <input type="number" name="rows_per_page" class="form-control" value="<%= settings.rows_per_page %>">
+            </div>
+
+            <button class="btn btn-outline-primary w-100">Save Settings</button>
+        </form>
+    </div>
+</body>
+</html>
