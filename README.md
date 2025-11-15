@@ -1,7 +1,7 @@
 # SQLite3 Admin
 ![Home Page](./assets/index.png)
 A lightweight, beautiful, zero-config web based SQLite admin panel.
-
+#### [Online demo](https://sqlite3-admin.onrender.com/)
 ### In 1 second:
 ```bash
 npx sqlite3-admin mydb.sqlite
